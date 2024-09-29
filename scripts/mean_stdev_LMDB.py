@@ -1,9 +1,15 @@
 import lmdb
 import pickle
 import numpy as np
+import sys
 
-# Define the path to the LMDB file (training set)
-lmdb_path = '../lmdb_files/qm9_new.lmdb'
+# Check if the file path is provided as an argument
+if len(sys.argv) < 2:
+    print("Usage: python script_name.py <lmdb_file_path>")
+    sys.exit(1)
+
+# Define the path to the LMDB file from the command line argument
+lmdb_path = sys.argv[1]
 
 # Open the LMDB environment
 env = lmdb.open(lmdb_path, subdir=False, readonly=True, lock=False)
