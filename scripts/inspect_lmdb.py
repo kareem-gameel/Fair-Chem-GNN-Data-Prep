@@ -1,9 +1,15 @@
 import lmdb
 import pickle
 from io import BytesIO
+import sys
 
-# Path to your LMDB file
-lmdb_path = "qm9_new.lmdb"
+# Check if the file path is provided as an argument
+if len(sys.argv) < 2:
+    print("Usage: python inspect_lmdb.py <lmdb_file_path>")
+    sys.exit(1)
+
+# Path to your LMDB file from the command line argument
+lmdb_path = sys.argv[1]
 
 # Open the LMDB environment
 env = lmdb.open(lmdb_path, subdir=False, readonly=True, lock=False)
