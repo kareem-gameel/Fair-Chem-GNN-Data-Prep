@@ -57,10 +57,10 @@ def generate_lmdb(lmdb_path, extxyz_file, csv_file):
     energies = parse_csv_file(csv_file)
 
     for system in tqdm(structures, desc=f"Processing QM9 dataset"):
-        # Extract the mol_id from the first key in system.info
-        mol_id = next(iter(system.info.keys()))
-        #print(f"Extracted mol_id: {mol_id}")  # Debugging line
-        
+        # Extract mol_id from system.info's key
+        mol_id = next(iter(system.info))  # Get the first (and only) key in system.info
+        #print(f"Extracted mol_id: {mol_id}")  # Debugging line to ensure correct mol_id extraction
+
         if mol_id is None:
             print(f"mol_id is None, skipping this structure.")
             continue
@@ -70,6 +70,7 @@ def generate_lmdb(lmdb_path, extxyz_file, csv_file):
             continue
 
         data = a2g.convert(system)
+        data.mol_id = mol_id  # Store the mol_id in the data object
         data.sid = int(idx)  # Ensure `sid` is stored as a plain integer
         data.y_relaxed = float(energies[mol_id])  # Ensure `y_relaxed` is stored as a plain float
 
