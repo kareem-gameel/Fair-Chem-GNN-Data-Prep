@@ -1,54 +1,42 @@
+import sys
+from fairchem.core.datasets import LmdbDataset
 import lmdb
 import pickle
 from tqdm import trange
 import numpy as np
-from fairchem.core.datasets import LmdbDataset
 
-# Set the file paths
-original_lmdb = "../lmdb_files/qm9_subset.lmdb"
-train_lmdb = "../lmdb_files/qm9_subset_80_train.lmdb"
-val_lmdb = "../lmdb_files/qm9_subset_80_val.lmdb"
-test_lmdb = "../lmdb_files/qm9_subset_80_test.lmdb"
+# File paths
+dataset_path = "../lmdb_files/qm9_subset.lmdb"
+train_lmdb_path = "../lmdb_files/qm9_subset_80_train.lmdb"
+val_lmdb_path = "../lmdb_files/qm9_subset_80_val.lmdb"
+test_lmdb_path = "../lmdb_files/qm9_subset_80_test.lmdb"
 
-# Set random number generator
+# Get a random number generator
 rng = np.random.default_rng()
 
-# Load the dataset using FairChem LmdbDataset
-dataset = LmdbDataset({"src": original_lmdb})
+# Read the dataset you want to split
+dataset = LmdbDataset({"src": dataset_path})
 
-# Set the split fractions (adjust if necessary)
-train_frac = 0.8
+# Want val_frac and test_frac to be relatively small to prevent long queue times due to system trying to guess a new random integer
 val_frac = 0.1
 test_frac = 0.1
 
-# Calculate the cutoffs for each split
-train_cutoff = round(train_frac * len(dataset))
 val_cutoff = round(val_frac * len(dataset))
 test_cutoff = round(test_frac * len(dataset))
 
-# Track used indexes to avoid overlap
-used_indexes = []
+used_indexes = []  # Used to track which structures are already in a dataset
 
-# Function to create a new LMDB file and store length key
-def create_lmdb(new_lmdb_path, data_list, label):
-    db = lmdb.open(new_lmdb_path, map_size=1099511627776 * 2, subdir=False, meminit=False, map_async=True)
-    print(f"Creating {label} dataset")
-    for idx in trange(len(data_list)):
-        data = data_list[idx]
-        txn = db.begin(write=True)
-        txn.put(f"{idx}".encode("ascii"), pickle.dumps(data, protocol=-1))
-        txn.commit()
-        db.sync()
-    
-    # Store the length of the dataset
-    txn = db.begin(write=True)
-    txn.put(b'length', pickle.dumps(len(data_list), protocol=-1))  # Store the total number of entries as the 'length'
-    txn.commit()
+# Writing val dataset
+db2 = lmdb.open(
+    val_lmdb_path,
+    map_size=1099511627776 * 2,
+    subdir=False,
+    meminit=False,
+    map_async=True,
+)
 
-    db.sync()
-    db.close()
+print("Creating val dataset")
 
-# Generate validation set
 val = []
 i = 0
 while i < val_cutoff:
@@ -58,9 +46,27 @@ while i < val_cutoff:
         val.append(dataset[id])
         i += 1
 
-create_lmdb(val_lmdb, val, "val")
+for id in trange(len(val)):
+    data = val[id]
+    data.val_id = id
+    txn = db2.begin(write=True)
+    txn.put(f"{id}".encode("ascii"), pickle.dumps(data, protocol=-1))
+    txn.commit()
+    db2.sync()
 
-# Generate test set
+db2.close()
+
+# Writing test dataset
+db3 = lmdb.open(
+    test_lmdb_path,
+    map_size=1099511627776 * 2,
+    subdir=False,
+    meminit=False,
+    map_async=True,
+)
+
+print("Creating test dataset")
+
 test = []
 j = 0
 while j < test_cutoff:
@@ -70,14 +76,39 @@ while j < test_cutoff:
         test.append(dataset[id])
         j += 1
 
-create_lmdb(test_lmdb, test, "test")
+for id in trange(len(test)):
+    data = test[id]
+    data.test_id = id
+    txn = db3.begin(write=True)
+    txn.put(f"{id}".encode("ascii"), pickle.dumps(data, protocol=-1))
+    txn.commit()
+    db3.sync()
 
-# Generate train set
-train = []
-for id in trange(len(dataset)): 
+db3.close()
+
+# Writing train dataset
+db = lmdb.open(
+    train_lmdb_path,
+    map_size=1099511627776 * 2,
+    subdir=False,
+    meminit=False,
+    map_async=True,
+)
+
+print("Creating train dataset")
+
+train_id = 0
+for id in trange(len(dataset)):
     if id not in used_indexes:
-        train.append(dataset[id])
+        data = dataset[id]
+        data.train_id = train_id
+        txn = db.begin(write=True)
+        txn.put(f"{train_id}".encode("ascii"), pickle.dumps(data, protocol=-1))
+        txn.commit()
+        db.sync()
 
-create_lmdb(train_lmdb, train, "train")
+        train_id += 1
 
-print("Splitting complete!")
+db.close()
+
+print("Done!")
