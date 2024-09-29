@@ -29,7 +29,7 @@ test_cutoff = round(test_frac * len(dataset))
 # Track used indexes to avoid overlap
 used_indexes = []
 
-# Function to create a new LMDB file
+# Function to create a new LMDB file and store length key
 def create_lmdb(new_lmdb_path, data_list, label):
     db = lmdb.open(new_lmdb_path, map_size=1099511627776 * 2, subdir=False, meminit=False, map_async=True)
     print(f"Creating {label} dataset")
@@ -39,6 +39,13 @@ def create_lmdb(new_lmdb_path, data_list, label):
         txn.put(f"{idx}".encode("ascii"), pickle.dumps(data, protocol=-1))
         txn.commit()
         db.sync()
+    
+    # Store the length of the dataset
+    txn = db.begin(write=True)
+    txn.put(b'length', pickle.dumps(len(data_list), protocol=-1))  # Store the total number of entries as the 'length'
+    txn.commit()
+
+    db.sync()
     db.close()
 
 # Generate validation set
