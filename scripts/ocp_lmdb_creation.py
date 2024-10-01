@@ -1,6 +1,7 @@
-#WARNING: this code assumes matching order and number of mol_ids across the graph features (in the input .extxyz file) 
-#and the target energies (in the input .csv file)
-
+# WARNING: this code assumes matching order and number of mol_ids across the graph features (in the input .extxyz file) 
+# and the target energies (in the input .csv file)
+# See curate.datasets.py script for data preparation before LMDB generation
+ 
 from ase.io import read
 from tqdm import tqdm
 import csv
