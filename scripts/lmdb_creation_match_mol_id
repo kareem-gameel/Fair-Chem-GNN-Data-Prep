@@ -1,0 +1,75 @@
+from ase.io import read
+from tqdm import tqdm
+import csv
+import lmdb
+import pickle
+from fairchem.core.preprocessing import AtomsToGraphs
+
+# File paths
+extxyz_file = '../extxyz_files/tmqm_curated_test.extxyz'
+csv_file = '../csv_files/tmqm_deltaE_curated_test.csv'
+lmdb_output = '../lmdb_files/tmqm_curated_test.lmdb'
+
+# Read extxyz file for data
+raw_data = read(extxyz_file, index=slice(None), format='extxyz')
+
+# Convert Atoms to Data object
+a2g = AtomsToGraphs(max_neigh=50, radius=6, r_energy=False, r_forces=False, r_distances=False, r_edges=False, r_fixed=True)
+
+# Read CSV file into a dictionary {mol_id: (formula, deltaE)}
+csv_data = {}
+with open(csv_file) as csv_file:
+    csv_reader = csv.reader(csv_file, delimiter=',')
+    line_count = 0
+    for row in csv_reader:
+        if line_count == 0:
+            print(f'Column names are {", ".join(row)}')
+        else:
+            mol_id = row[0]
+            formula = row[1]
+            deltaE = float(row[2])
+            csv_data[mol_id] = (formula, deltaE)
+        line_count += 1
+
+# Convert atoms objects into graphs and merge with CSV data
+data_objects = []
+for system in tqdm(raw_data, desc="Processing molecules"):
+    mol_id_extxyz = system.info.get('mol_id')  # Get mol_id from extxyz
+    
+    # Check if mol_id from extxyz exists in CSV
+    if mol_id_extxyz in csv_data:
+        data = a2g.convert(system)  # Convert to graph
+        data.mol_id = mol_id_extxyz  # Store mol_id in Data object
+        data.formula = csv_data[mol_id_extxyz][0]  # Get formula from CSV
+        data.deltaE = csv_data[mol_id_extxyz][1]  # Get deltaE from CSV
+        data.y_relaxed = csv_data[mol_id_extxyz][1]  # Ensure target is named y_relaxed
+        
+        data_objects.append(data)  # Only add the molecule if both files contain it
+
+    else:
+        print(f"Warning: mol_id {mol_id_extxyz} not found in CSV, skipping this molecule.")
+
+# Write LMDB
+db = lmdb.open(
+    lmdb_output,
+    map_size=1099511627776 * 2,
+    subdir=False,
+    meminit=False,
+    map_async=True,
+)
+
+idx = 0
+for sid, data in tqdm(enumerate(data_objects), total=len(data_objects), desc="Writing LMDB"):
+    # Assign sid
+    data.sid = idx
+
+    txn = db.begin(write=True)
+    txn.put(f"{sid}".encode("ascii"), pickle.dumps(data, protocol=-1))
+    txn.commit()
+    db.sync()
+
+    idx += 1
+
+db.close()
+
+print("LMDB generation completed!")
