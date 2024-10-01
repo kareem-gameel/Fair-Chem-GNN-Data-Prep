@@ -6,10 +6,10 @@ from tqdm import trange
 import numpy as np
 
 # File paths
-dataset_path = "../lmdb_files/qm9_subset.lmdb"
-train_lmdb_path = "../lmdb_files/qm9_subset_80_train.lmdb"
-val_lmdb_path = "../lmdb_files/qm9_subset_80_val.lmdb"
-test_lmdb_path = "../lmdb_files/qm9_subset_80_test.lmdb"
+dataset_path = "../lmdb_files/qm9_curated.lmdb"
+train_lmdb_path = "../lmdb_files/qm9_curated_80_train.lmdb"
+val_lmdb_path = "../lmdb_files/qm9_curated_80_val.lmdb"
+test_lmdb_path = "../lmdb_files/qm9_curated_80_test.lmdb"
 
 # Get a random number generator
 rng = np.random.default_rng()
