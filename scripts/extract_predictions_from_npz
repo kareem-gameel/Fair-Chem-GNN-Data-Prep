@@ -1,0 +1,50 @@
+import numpy as np
+import lmdb
+import pickle
+import csv
+
+# Function to load mol_id by sid from the LMDB file
+def load_mol_ids_from_lmdb(lmdb_path):
+    mol_id_map = {}
+    env = lmdb.open(lmdb_path, subdir=False, readonly=True, lock=False)
+    with env.begin() as txn:
+        cursor = txn.cursor()
+        for key, value in cursor:
+            if key != b'length':  # Skip the 'length' key if it exists
+                data = pickle.loads(value)
+                mol_id_map[data.sid] = data.mol_id
+    return mol_id_map
+
+# Paths to the npz file (predictions) and LMDB file
+predictions_npz_path = "../cycle_predictions/selected_tmqm_predictions.npz"
+lmdb_file_path = "../lmdb_files/selected_tmqm.lmdb"  # Path to your LMDB file
+
+# Load predictions from npz file
+predictions_data = np.load(predictions_npz_path)
+predicted_energies = predictions_data['energy'].flatten()
+predicted_ids = predictions_data['ids']  # These are sid values
+
+# Load mol_id mapping from LMDB
+mol_id_map = load_mol_ids_from_lmdb(lmdb_file_path)
+
+# Combine sid, mol_id, and predicted_energy into a list for sorting
+results = []
+for sid, energy in zip(predicted_ids, predicted_energies):
+    mol_id = mol_id_map[int(sid)]  # Get mol_id corresponding to sid
+    results.append((int(sid), mol_id, energy))
+
+# Sort results by sid
+results.sort(key=lambda x: x[0])
+
+# Define the output CSV file path
+output_csv_path = "mol_id_predicted_energies.csv"
+
+# Write sid, mol_id, and predicted energy to CSV in ascending order of sid
+with open(output_csv_path, mode='w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(["sid", "mol_id", "predicted_energy"])  # Header
+
+    for sid, mol_id, energy in results:
+        writer.writerow([sid, mol_id, energy])
+
+print(f"CSV file '{output_csv_path}' generated successfully.")
