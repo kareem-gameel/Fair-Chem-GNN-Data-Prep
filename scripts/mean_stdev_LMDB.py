@@ -19,10 +19,18 @@ energy_values = []
 
 # Start a read transaction
 with env.begin() as txn:
-    # Get the length of the dataset (number of entries)
-    length = pickle.loads(txn.get(b'length'))
+    # Check if the 'length' key is available
+    length_entry = txn.get(b'length')
+    if length_entry is None:
+        print("The 'length' key is missing. Counting entries manually.")
+        cursor = txn.cursor()
+        length = sum(1 for key, _ in cursor if key != b'length')
+    else:
+        length = pickle.loads(length_entry)
 
-    # Iterate over the LMDB entries
+    print(f"Total number of entries: {length}")
+
+    # Iterate over the LMDB entries to extract energy values
     for idx in range(length):
         key = f"{idx}".encode("ascii")  # Encode the index as a key
         entry = txn.get(key)
